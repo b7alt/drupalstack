@@ -1,0 +1,139 @@
+#!/bin/bash
+#
+## Drupal Stack install
+#
+
+export LC_ALL=en_US.UTF-8
+
+DRUPAL_PASSWORD='drupal';
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update && apt-get upgrade -y
+
+locale-gen UTF-8
+
+apt-get install -y supervisor openssh-server nginx php5 php5-cli php5-fpm php5-sqlite php5-gd  emacs php-apc git
+apt-get install -yq mysql-server php5-mysql pwgen
+
+# Move the default SSH to port 1964
+#echo "" >> /etc/ssh/sshd_config
+#echo "Port 1964" >> /etc/ssh/sshd_config
+
+sed --in-place=.bak 's/Port 22/Port 1964/' /etc/ssh/sshd_config
+
+
+
+# Drush install with pear
+#apt-get install -y php-pear
+#pear channel-discover pear.drush.org 
+#pear install drush/drush
+#drush version
+#pear upgrade drush/drush
+
+curl -sS https://getcomposer.org/installer | php
+mv composer.phar /usr/local/bin/composer
+sed -i '1i export PATH="$HOME/.composer/vendor/bin:$PATH"' $HOME/.bashrc
+source $HOME/.bashrc
+composer global require drush/drush:dev-master
+drush --version
+
+
+update-rc.d nginx disable
+update-rc.d php5-fpm disable
+update-rc.d supervisor disable
+update-rc.d ssh disable
+update-rc.d mysql disable
+
+#/etc/init.d/supervisor stop
+#/etc/init.d/php5-fpm stop
+#/etc/init.d/mysql stop
+
+mkdir -p /var/run/sshd /srv/drupal/www /srv/drupal/www8080 /srv/drupal/www8070 /srv/drupal/www8090 /srv/drupal/www8060 /srv/drupal/config /srv/data /srv/logs /tmp
+
+cp site.conf /srv/drupal/config/site.conf
+cp nginx.conf /nginx.conf
+cp php-fpm.conf /php-fpm.conf
+cp supervisord.conf /supervisord.conf
+#cp settings.php.append /settings.php.append
+
+# php5-apc
+sed -i '$a apc.shm_size=128M' /etc/php5/conf.d/20-apc.ini
+sed -i '$a apc.include_once_override=0' /etc/php5/conf.d/20-apc.ini
+
+# php parameters
+sed -i 's|max_execution_time = 30|max_execution_time = 180 |g' /etc/php5/fpm/php.ini
+sed -i 's|memory_limit = 128M|memory_limit = 256M|g' /etc/php5/fpm/php.ini
+
+#echo "root:root" | chpasswd
+#sed --in-place=.bak 's/without-password/yes/' /etc/ssh/sshd_config
+
+/usr/bin/supervisord  -c /supervisord.conf -e trace
+
+mysqladmin -u root password $DRUPAL_PASSWORD
+
+mysql -uroot -pdrupal -e "CREATE DATABASE www80; GRANT ALL PRIVILEGES ON www80.* TO 'drupal'@'localhost' IDENTIFIED BY '$DRUPAL_PASSWORD'; FLUSH PRIVILEGES;"
+
+mysql -uroot -pdrupal -e "CREATE DATABASE www8080; GRANT ALL PRIVILEGES ON www8080.* TO 'drupal'@'localhost' IDENTIFIED BY '$DRUPAL_PASSWORD'; FLUSH PRIVILEGES;"
+
+mysql -uroot -pdrupal -e "CREATE DATABASE www8070; GRANT ALL PRIVILEGES ON www8070.* TO 'drupal'@'localhost' IDENTIFIED BY '$DRUPAL_PASSWORD'; FLUSH PRIVILEGES;"
+
+mysql -uroot -pdrupal -e "CREATE DATABASE www8090; GRANT ALL PRIVILEGES ON www8090.* TO 'drupal'@'localhost' IDENTIFIED BY '$DRUPAL_PASSWORD'; FLUSH PRIVILEGES;"
+
+mysql -uroot -pdrupal -e "CREATE DATABASE www8060; GRANT ALL PRIVILEGES ON www8060.* TO 'drupal'@'localhost' IDENTIFIED BY '$DRUPAL_PASSWORD'; FLUSH PRIVILEGES;"
+
+cd /tmp && drush dl drupal && mv /tmp/drupal*/* /srv/drupal/www/ && rm -rf /tmp/*
+chmod a+w /srv/drupal/www/sites/default && mkdir -p /srv/drupal/www/sites/default/files
+chown -R www-data:www-data /srv/drupal/www/
+cp /srv/drupal/www/sites/default/default.settings.php /srv/drupal/www/sites/default/settings.php
+chmod a+w /srv/drupal/www/sites/default/settings.php
+
+cd /tmp && drush dl commons && mv /tmp/commons*/* /srv/drupal/www8080/ && rm -rf /tmp/*
+chmod a+w /srv/drupal/www8080/sites/default && mkdir -p /srv/drupal/www8080/sites/default/files
+chown -R www-data:www-data /srv/drupal/www8080/
+cp /srv/drupal/www8080/sites/default/default.settings.php /srv/drupal/www8080/sites/default/settings.php
+chmod a+w /srv/drupal/www8080/sites/default/settings.php
+
+cd /tmp && drush dl tb_sirate_starter && mv /tmp/tb_sirate_starter*/* /srv/drupal/www8070/ && rm -rf /tmp/*
+chmod a+w /srv/drupal/www8070/sites/default && mkdir -p /srv/drupal/www8070/sites/default/files
+chown -R www-data:www-data /srv/drupal/www8070/
+cp /srv/drupal/www8070/sites/default/default.settings.php /srv/drupal/www8070/sites/default/settings.php
+chmod a+w /srv/drupal/www8070/sites/default/settings.php
+
+cd /tmp && drush dl spark-7.x && mv /tmp/spark-7.x*/* /srv/drupal/www8090/ && rm -rf /tmp/*
+chmod a+w /srv/drupal/www8090/sites/default && mkdir -p /srv/drupal/www8090/sites/default/files
+chown -R www-data:www-data /srv/drupal/www8090/
+cp /srv/drupal/www8090/sites/default/default.settings.php /srv/drupal/www8090/sites/default/settings.php
+chmod a+w /srv/drupal/www8090/sites/default/settings.php
+
+cd /tmp && drush dl drupal-8 && mv /tmp/drupal-8*/* /srv/drupal/www8060/ && rm -rf /tmp/*
+chmod a+w /srv/drupal/www8060/sites/default && mkdir -p /srv/drupal/www8060/sites/default/files
+chown -R www-data:www-data /srv/drupal/www8060/
+cp /srv/drupal/www8060/sites/default/default.settings.php /srv/drupal/www8060/sites/default/settings.php
+chmod a+w /srv/drupal/www8060/sites/default/settings.php
+
+chown www-data:www-data /srv/data
+
+chmod a+w /srv/drupal/www/sites/default/files
+
+#drush site-install standard --db-url=mysql://user:pass@localhost/db_name --site-name=your_site_name --account-name=admin --account-pass=your_password
+#cd /srv/drupal/www/ && drush -y site-install standard --account-name=admin --account-pass=test --site-name=wool --db-url=sqlite:sites/default/files/.ht.sqlite
+
+cd /srv/drupal/www/ && drush -y site-install standard --account-name=admin --account-pass=test --site-name=wool --db-url=mysql://drupal:drupal@localhost/www80
+
+#cat /settings.php.append >> /srv/drupal/www/sites/default/settings.php
+
+cd /srv/drupal/www/ && drush -y dl environment_indicator devel views ctools
+cd /srv/drupal/www/ && drush -y en environment_indicator devel views ctools views_ui
+
+ls -al /srv/drupal/www/sites/default/files
+#chown -R www-data:www-data /srv/drupal/www/sites/default/files/.ht.sqlite
+chmod a-w /srv/drupal/www/sites/default/settings.php
+
+# enabling swap
+dd if=/dev/zero of=/var/swap.img bs=1024k count=1000
+mkswap /var/swap.img
+swapon /var/swap.img
+free
+
+
+
