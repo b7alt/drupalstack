@@ -1,7 +1,7 @@
 drupalstack
 ===========
 
-bash script to install a drupal stack based on a debian distro osted on a cloud (digitalocean, rackspace)
+bash script to install a drupal stack based on a debian distro hosted on a cloud (digitalocean, rackspace)
 
 NGINX, PHP, APC, MYSQL
 
@@ -14,7 +14,7 @@ NGINX, PHP, APC, MYSQL
 
 ## Usage
 
-create a vm based on debian wheezy and then:
+create a vm based on debian Wheezy and then:
 
 ```
 root@mybox:~# git clone http://github.com/b7alt/drupalstack
